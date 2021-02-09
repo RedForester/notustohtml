@@ -128,6 +128,8 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
     // Open heading
     if (style.contains(NotusAttribute.heading)) {
       _writeAttribute(buffer, style.get<int>(NotusAttribute.heading));
+    } else if (style.isEmpty) {
+      buffer.write("<p>");
     }
     // Write the text itself
     buffer.write(text);
@@ -135,6 +137,8 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
     if (style.contains(NotusAttribute.heading)) {
       _writeAttribute(buffer, style.get<int>(NotusAttribute.heading),
           close: true);
+    } else if (style.isEmpty) {
+      buffer.write("</p>");
     }
     return buffer.toString();
   }
