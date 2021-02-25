@@ -120,7 +120,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       }
     }
     _handleBlock(currentBlockStyle); // Close the last block
-    return buffer.toString().replaceAll("\n", "<br>");
+    return buffer.toString().replaceAll("\n", "<p><br></p>");
   }
 
   String _writeLine(String text, NotusStyle style) {
