@@ -50,7 +50,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
         buffer.writeln();
       } else if (blockStyle == NotusAttribute.bq) {
         _writeAttribute(buffer, blockStyle);
-        buffer.write(currentBlockLines.join('\n'));
+        buffer.write(currentBlockLines.join('</blockquote><blockquote>'));
         _writeAttribute(buffer, blockStyle, close: true);
         buffer.writeln();
       } else if (blockStyle == NotusAttribute.ol ||
@@ -120,11 +120,12 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       }
     }
     _handleBlock(currentBlockStyle); // Close the last block
+
     return buffer.toString()
-      .replaceAll("\n", "<br>")
-      .replaceAll("<br><br>", "<br>")
-      .replaceAll(RegExp("<br>\$"), "")
-      .replaceAll("<p></p>", "")
+      .replaceAll("\n<p></p>\n", "<br>")
+      .replaceAll("<br>\n", "<br>")
+      .replaceAll("\n", "")
+      .replaceAll(RegExp("(<br>)+\$"), "")
       .replaceAll("<br>", "<p><br></p>");
   }
 
