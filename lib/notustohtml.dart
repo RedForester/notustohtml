@@ -124,6 +124,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       .replaceAll("\n", "<br>")
       .replaceAll("<br><br>", "<br>")
       .replaceAll(RegExp("<br>\$"), "")
+      .replaceAll("<p></p>", "")
       .replaceAll("<br>", "<p><br></p>");
   }
 
