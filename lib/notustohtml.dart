@@ -44,9 +44,11 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
         buffer.write(currentBlockLines.join('\n\n'));
         buffer.writeln();
       } else if (blockStyle == NotusAttribute.code) {
+        buffer.write("<p>");
         _writeAttribute(buffer, blockStyle);
         buffer.write(currentBlockLines.join('\n'));
         _writeAttribute(buffer, blockStyle, close: true);
+        buffer.write("</p>");
         buffer.writeln();
       } else if (blockStyle == NotusAttribute.bq) {
         _writeAttribute(buffer, blockStyle);
