@@ -41,20 +41,15 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       }
 
       if (blockStyle == null) {
-        buffer.write(currentBlockLines.join('\n\n'));
-        buffer.writeln();
+        buffer.write(currentBlockLines.join(''));
       } else if (blockStyle == NotusAttribute.code) {
-        buffer.write("<p>");
         _writeAttribute(buffer, blockStyle);
         buffer.write(currentBlockLines.join('\n'));
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.write("</p>");
-        buffer.writeln();
       } else if (blockStyle == NotusAttribute.bq) {
         _writeAttribute(buffer, blockStyle);
         buffer.write(currentBlockLines.join('</blockquote><blockquote>'));
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.writeln();
       } else if (blockStyle == NotusAttribute.ol ||
           blockStyle == NotusAttribute.ul) {
         _writeAttribute(buffer, blockStyle);
@@ -62,15 +57,12 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
         buffer.write(currentBlockLines.join('</li><li>'));
         buffer.write("</li>");
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.writeln();
       } else {
         for (var line in currentBlockLines) {
           _writeBlockTag(buffer, blockStyle);
           buffer.write(line);
-          buffer.writeln();
         }
       }
-      buffer.writeln();
     }
 
     void _handleSpan(String text, Map<String, dynamic> attributes) {
@@ -124,12 +116,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
     _handleBlock(currentBlockStyle); // Close the last block
 
     return buffer.toString()
-      .replaceAll("\n<p></p>\n", "<br>")
-      .replaceAll("<br>\n", "<br>")
-      .replaceAll(RegExp("(?!<code>.*)\n(?!.*<\/code>)"), "")
-      .replaceAll(RegExp("\n<code>"), "<code>")
-      .replaceAll(RegExp("(<br>)+\$"), "")
-      .replaceAll("<br>", "<p><br></p>");
+      .replaceAll("<p></p>", "<p><br></p>");
   }
 
   String _writeLine(String text, NotusStyle style) {
@@ -240,9 +227,9 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       {bool close = false}) {
     if (block == NotusAttribute.code) {
       if (!close) {
-        buffer.write('\n<code>');
+        buffer.write('<code>');
       } else {
-        buffer.write('</code>\n');
+        buffer.write('</code>');
       }
     } else {
       if (!close) {
