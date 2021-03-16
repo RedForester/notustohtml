@@ -20,6 +20,8 @@ class NotusHtmlCodec extends Codec<Delta, String> {
 class _NotusHtmlEncoder extends Converter<Delta, String> {
   static const kBold = 'strong';
   static const kItalic = 'em';
+  static const kCode = 'code';
+  static const kCodeblock = 'pre';
   static final kSimpleBlocks = <NotusAttribute, String>{
     NotusAttribute.bq: 'blockquote',
     NotusAttribute.ul: 'ul',
@@ -34,27 +36,23 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
     NotusAttribute<String> currentBlockStyle;
     var currentInlineStyle = NotusStyle();
     var currentBlockLines = [];
+    var currentDataLanguage = null;
 
-    void _handleBlock(NotusAttribute<String> blockStyle) {
+    void _handleBlock(NotusAttribute<String> blockStyle, {String dataLanguage}) {
       if (currentBlockLines.isEmpty) {
         return; // Empty block
       }
 
       if (blockStyle == null) {
-        buffer.write(currentBlockLines.join('\n\n'));
-        buffer.writeln();
-      } else if (blockStyle == NotusAttribute.code) {
-        buffer.write("<p>");
-        _writeAttribute(buffer, blockStyle);
+        buffer.write(currentBlockLines.join(''));
+      } else if (blockStyle == NotusAttribute.codeblock) {
+        _writeAttribute(buffer, blockStyle, dataLanguage: dataLanguage);
         buffer.write(currentBlockLines.join('\n'));
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.write("</p>");
-        buffer.writeln();
       } else if (blockStyle == NotusAttribute.bq) {
         _writeAttribute(buffer, blockStyle);
         buffer.write(currentBlockLines.join('</blockquote><blockquote>'));
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.writeln();
       } else if (blockStyle == NotusAttribute.ol ||
           blockStyle == NotusAttribute.ul) {
         _writeAttribute(buffer, blockStyle);
@@ -62,15 +60,12 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
         buffer.write(currentBlockLines.join('</li><li>'));
         buffer.write("</li>");
         _writeAttribute(buffer, blockStyle, close: true);
-        buffer.writeln();
       } else {
         for (var line in currentBlockLines) {
-          _writeBlockTag(buffer, blockStyle);
+          _writeBlockTag(buffer, blockStyle, dataLanguage: dataLanguage);
           buffer.write(line);
-          buffer.writeln();
         }
       }
-      buffer.writeln();
     }
 
     void _handleSpan(String text, Map<String, dynamic> attributes) {
@@ -85,7 +80,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
       if (lineBlock == currentBlockStyle) {
         currentBlockLines.add(_writeLine(lineBuffer.toString(), style));
       } else {
-        _handleBlock(currentBlockStyle);
+        _handleBlock(currentBlockStyle, dataLanguage: currentDataLanguage);
         currentBlockLines.clear();
         currentBlockLines.add(_writeLine(lineBuffer.toString(), style));
 
@@ -96,6 +91,9 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
 
     while (iterator.hasNext) {
       final op = iterator.next();
+      if (op.attributes != null && op.attributes["block"] == "code") {
+        currentDataLanguage = op.attributes["data_language"] ?? "";
+      }
       final lf = op.data.indexOf('\n');
       if (lf == -1) {
         _handleSpan(op.data, op.attributes);
@@ -121,14 +119,9 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
         }
       }
     }
-    _handleBlock(currentBlockStyle); // Close the last block
+    _handleBlock(currentBlockStyle, dataLanguage: currentDataLanguage); // Close the last block
 
-    return buffer.toString()
-      .replaceAll("\n<p></p>\n", "<br>")
-      .replaceAll("<br>\n", "<br>")
-      .replaceAll("\n", "")
-      .replaceAll(RegExp("(<br>)+\$"), "")
-      .replaceAll("<br>", "<p><br></p>");
+    return buffer.toString().replaceAll("<p></p>", "<p><br></p>");
   }
 
   String _writeLine(String text, NotusStyle style) {
@@ -194,17 +187,19 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
   }
 
   void _writeAttribute(StringBuffer buffer, NotusAttribute attribute,
-      {bool close = false}) {
+      {bool close = false, String dataLanguage = null}) {
     if (attribute == NotusAttribute.bold) {
       _writeBoldTag(buffer, close: close);
     } else if (attribute == NotusAttribute.italic) {
       _writeItalicTag(buffer, close: close);
+    } else if (attribute == NotusAttribute.code) {
+      _writeCodeTag(buffer, close: close);
     } else if (attribute.key == NotusAttribute.link.key) {
       _writeLinkTag(buffer, attribute as NotusAttribute<String>, close: close);
     } else if (attribute.key == NotusAttribute.heading.key) {
       _writeHeadingTag(buffer, attribute as NotusAttribute<int>, close: close);
     } else if (attribute.key == NotusAttribute.block.key) {
-      _writeBlockTag(buffer, attribute as NotusAttribute<String>, close: close);
+      _writeBlockTag(buffer, attribute as NotusAttribute<String>, close: close, dataLanguage: dataLanguage);
     } else if (attribute.key == NotusAttribute.embed.key) {
       _writeEmbedTag(buffer, attribute as EmbedAttribute, close: close);
     } else {
@@ -218,6 +213,10 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
 
   void _writeItalicTag(StringBuffer buffer, {bool close = false}) {
     buffer.write(!close ? "<$kItalic>" : "</$kItalic>");
+  }
+
+  void _writeCodeTag(StringBuffer buffer, {bool close = false}) {
+    buffer.write(!close ? "<$kCode>" : "</$kCode>");
   }
 
   void _writeLinkTag(StringBuffer buffer, NotusAttribute<String> link,
@@ -236,12 +235,16 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
   }
 
   void _writeBlockTag(StringBuffer buffer, NotusAttribute<String> block,
-      {bool close = false}) {
-    if (block == NotusAttribute.code) {
+      {bool close = false, String dataLanguage = null}) {
+    if (block == NotusAttribute.block.code) {
       if (!close) {
-        buffer.write('\n<code>');
+        if (dataLanguage == null || dataLanguage.length == 0) {
+          buffer.write('<$kCodeblock>');
+        } else {
+          buffer.write('<$kCodeblock data-language="$dataLanguage">');
+        }
       } else {
-        buffer.write('</code>\n');
+        buffer.write('</$kCodeblock>');
       }
     } else {
       if (!close) {
@@ -304,16 +307,29 @@ class _NotusHtmlDecoder extends Converter<String, Delta> {
       }
       delta = _parseElement(
           element, delta, _supportedElements[element.localName],
-          next: next, isNewLine: isNewLine, inBlock: inBlock, attributes: attributes);
+          next: next,
+          isNewLine: isNewLine,
+          inBlock: inBlock,
+          attributes: attributes);
       return delta;
     } else {
       Text text = node;
-      if (next != null &&
+      if (inBlock != null && inBlock["block"] == "code") {
+        var lines = text.text.split("\n");
+        lines.asMap().forEach((idx, element) {
+          delta..insert(element);
+          if (idx < lines.length - 1) {
+            delta..insert("\n", inBlock);
+          }
+        });
+      } else if (next != null &&
           next.runtimeType == Element &&
           next.localName == "br") {
         delta..insert(text.text + "\n");
       } else {
-        delta..insert(text.text, attributes);
+        if (!(!delta.isEmpty && delta.last.data.endsWith("\n") && text.text == "\n")) {
+          delta..insert(text.text, attributes);
+        }
       }
       return delta;
     }
@@ -340,8 +356,9 @@ class _NotusHtmlDecoder extends Converter<String, Delta> {
       if (element.localName == "blockquote") {
         blockAttributes["block"] = "quote";
       }
-      if (element.localName == "code") {
+      if (element.localName == "pre") {
         blockAttributes["block"] = "code";
+        blockAttributes["data_language"] = element.attributes["data-language"];
       }
       if (element.localName == "li") {
         blockAttributes["block"] = listType;
@@ -353,7 +370,9 @@ class _NotusHtmlDecoder extends Converter<String, Delta> {
             isNewLine: element.localName == "li" || element.localName == "p" || element.localName == "div", inBlock: blockAttributes);
       });
       if (inBlock == null) {
-        delta..insert("\n", blockAttributes);
+        if (!delta.last.data.endsWith("\n")) {
+          delta..insert("\n", blockAttributes);
+        }
       }
       return delta;
     } else if (type == "embed") {
@@ -382,6 +401,9 @@ class _NotusHtmlDecoder extends Converter<String, Delta> {
       }
       if (element.localName == "a") {
         attributes["a"] = element.attributes["href"];
+      }
+      if (element.localName == "code") {
+        attributes["code"] = true;
       }
       if (element.children.isEmpty) {
         if (attributes["a"] != null) {
@@ -420,7 +442,8 @@ class _NotusHtmlDecoder extends Converter<String, Delta> {
   Map<String, String> _supportedElements = {
     "li": "block",
     "blockquote": "block",
-    "code": "block",
+    "pre": "block",
+    "code": "inline",
     "h1": "block",
     "h2": "block",
     "h3": "block",
