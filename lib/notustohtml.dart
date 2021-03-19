@@ -224,7 +224,7 @@ class _NotusHtmlEncoder extends Converter<Delta, String> {
     if (close) {
       buffer.write('</a>');
     } else {
-      buffer.write('<a href="${link.value}">');
+      buffer.write('<a href="${link.value}" target="_blank">');
     }
   }
 
